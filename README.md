@@ -17,20 +17,28 @@ Gives you a live view of all your FluxCD resources — Kustomizations, Helm Rele
 
 ## Installation
 
+**Via `go install`:**
+```bash
+go install github.com/LotadTech/lazy-fluxcd@latest
+lazy-fluxcd
+```
+
+**From source:**
 ```bash
 git clone https://github.com/LotadTech/lazy-fluxcd
 cd lazy-fluxcd
 make build
+./lazy-fluxcd
 ```
 
 ## Usage
 
 ```bash
 # Uses ~/.kube/config by default
-./lazy-fluxcd
+lazy-fluxcd
 
 # Point at a specific kubeconfig
-./lazy-fluxcd --kubeconfig /path/to/config
+lazy-fluxcd --kubeconfig /path/to/config
 ```
 
 ## Make targets
