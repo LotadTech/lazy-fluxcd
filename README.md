@@ -47,10 +47,12 @@ make build
 
 | Key | Action |
 |-----|--------|
-| `tab` / `l` | Move to resource panel |
-| `h` | Move to sidebar |
-| `j` / `↓` | Move down |
-| `k` / `↑` | Move up |
+| `tab` / `l` | Focus resource panel |
+| `h` | Focus sidebar |
+| `j` / `↓` | Scroll down |
+| `k` / `↑` | Scroll up |
+| `←` | Scroll columns left |
+| `→` | Scroll columns right |
 | `q` / `ctrl+c` | Quit |
 
 ## Resource types
