@@ -80,6 +80,8 @@ type Model struct {
 	errors      map[string]string
 	catCursor   int
 	mainCursor  int
+	mainOffset  int
+	colOffset   int
 	activePanel panel
 	width       int
 	height      int
@@ -132,6 +134,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.category == m.categories[m.catCursor] {
 			m.mainCursor = 0
+			m.mainOffset = 0
+			m.colOffset = 0
 		}
 
 	case tea.WindowSizeMsg:
@@ -146,9 +150,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab", "l", "h":
 			if msg.String() == "h" || (msg.String() == "tab" && m.activePanel == panelMain) {
 				m.activePanel = panelSidebar
+				m.colOffset = 0
 			} else {
 				m.activePanel = panelMain
 				m.mainCursor = 0
+				m.mainOffset = 0
+				m.colOffset = 0
 			}
 
 		case "up", "k":
@@ -156,10 +163,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.catCursor > 0 {
 					m.catCursor--
 					m.mainCursor = 0
+					m.mainOffset = 0
+					m.colOffset = 0
 				}
 			} else {
 				if m.mainCursor > 0 {
 					m.mainCursor--
+					if m.mainCursor < m.mainOffset {
+						m.mainOffset--
+					}
 				}
 			}
 
@@ -168,17 +180,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.catCursor < len(m.categories)-1 {
 					m.catCursor++
 					m.mainCursor = 0
+					m.mainOffset = 0
+					m.colOffset = 0
 				}
 			} else {
 				rows := m.rows[m.categories[m.catCursor]]
 				if m.mainCursor < len(rows)-1 {
 					m.mainCursor++
+					visibleRows := m.visibleMainRows()
+					if m.mainCursor >= m.mainOffset+visibleRows {
+						m.mainOffset++
+					}
 				}
+			}
+
+		case "left":
+			if m.activePanel == panelMain && m.colOffset > 0 {
+				m.colOffset -= 4
+				if m.colOffset < 0 {
+					m.colOffset = 0
+				}
+			}
+
+		case "right":
+			if m.activePanel == panelMain {
+				m.colOffset += 4
 			}
 		}
 	}
 
 	return m, nil
+}
+
+func (m Model) visibleMainRows() int {
+	const titleHeight = 1
+	const statusHeight = 1
+	const vertBorderOverhead = 2 // top + bottom border of one panel
+	const headerLines = 2        // header + divider
+	v := m.height - titleHeight - statusHeight - vertBorderOverhead - headerLines
+	if v < 1 {
+		v = 1
+	}
+	return v
 }
 
 func (m Model) View() string {
@@ -187,18 +230,25 @@ func (m Model) View() string {
 	}
 
 	const sidebarWidth = 26
-	const borderOverhead = 4 // 2 borders × 2 sides
-	const titleHeight = 2
+	const horizBorderOverhead = 4 // 2 panels × left+right border each
+	const vertBorderOverhead = 2  // top + bottom border of panel
+	const titleHeight = 1
 	const statusHeight = 1
-	panelHeight := m.height - titleHeight - statusHeight - borderOverhead
+	panelHeight := m.height - titleHeight - statusHeight - vertBorderOverhead
 	if panelHeight < 1 {
 		panelHeight = 1
 	}
-	mainWidth := m.width - sidebarWidth - borderOverhead
+	mainWidth := m.width - sidebarWidth - horizBorderOverhead
+	if mainWidth < 1 {
+		mainWidth = 1
+	}
 
 	// ── Sidebar ──────────────────────────────────────────────────────────────
 	var sidebarLines []string
 	for i, cat := range m.categories {
+		if i >= panelHeight {
+			break
+		}
 		label := fmt.Sprintf("%-*s", sidebarWidth-2, cat)
 		if i == m.catCursor {
 			sidebarLines = append(sidebarLines, selectedRowStyle.Width(sidebarWidth-2).Render(label))
@@ -210,7 +260,10 @@ func (m Model) View() string {
 
 	// ── Main panel ───────────────────────────────────────────────────────────
 	category := m.categories[m.catCursor]
-	colW := mainWidth - borderOverhead
+	colW := mainWidth
+	if colW < 1 {
+		colW = 1
+	}
 
 	// Compute column widths from content so nothing overlaps.
 	headers := [4]string{"NAME", "READY", "STATUS", "LAST RECONCILED"}
@@ -226,6 +279,27 @@ func (m Model) View() string {
 		}
 	}
 
+	// clip truncates s to at most n visible characters.
+	clip := func(s string, n int) string {
+		if n <= 0 {
+			return ""
+		}
+		runes := []rune(s)
+		if len(runes) > n {
+			return string(runes[:n])
+		}
+		return s
+	}
+
+	// scroll skips the first n visible characters (horizontal scroll).
+	scroll := func(s string, n int) string {
+		runes := []rune(s)
+		if n >= len(runes) {
+			return ""
+		}
+		return string(runes[n:])
+	}
+
 	renderRow := func(row [4]string) string {
 		return fmt.Sprintf("%-*s  %-*s  %-*s  %s",
 			widths[0], row[0],
@@ -235,7 +309,13 @@ func (m Model) View() string {
 		)
 	}
 
-	header := headerStyle.Width(colW).Render(renderRow(headers))
+	// rowContentW is the usable content width inside a padded row style (Padding 0,1 = 2 chars).
+	rowContentW := colW - 2
+	if rowContentW < 0 {
+		rowContentW = 0
+	}
+
+	header := headerStyle.Width(colW).Render(clip(scroll(renderRow(headers), m.colOffset), colW))
 	divider := lipgloss.NewStyle().Foreground(colorSubtle).Render(strings.Repeat("─", colW))
 
 	var mainLines []string
@@ -247,9 +327,24 @@ func (m Model) View() string {
 	case m.errors[category] != "":
 		mainLines = append(mainLines, normalRowStyle.Render("error: "+m.errors[category]))
 	default:
-		for i, row := range m.rows[category] {
-			line := renderRow(row)
-			if m.activePanel == panelMain && i == m.mainCursor {
+		visibleRows := m.visibleMainRows()
+		// Guard against mainOffset exceeding rows (e.g. after a re-fetch with fewer results).
+		maxOffset := len(m.rows[category]) - 1
+		if maxOffset < 0 {
+			maxOffset = 0
+		}
+		offset := m.mainOffset
+		if offset > maxOffset {
+			offset = maxOffset
+		}
+		end := offset + visibleRows
+		if end > len(m.rows[category]) {
+			end = len(m.rows[category])
+		}
+		for i, row := range m.rows[category][offset:end] {
+			absIdx := offset + i
+			line := clip(scroll(renderRow(row), m.colOffset), rowContentW)
+			if m.activePanel == panelMain && absIdx == m.mainCursor {
 				mainLines = append(mainLines, selectedRowStyle.Width(colW).Render(line))
 			} else {
 				mainLines = append(mainLines, normalRowStyle.Width(colW).Render(line))
@@ -277,6 +372,7 @@ func (m Model) View() string {
 	statusBar := statusStyle.Render(
 		keyStyle.Render("tab/l/h") + " switch panel  " +
 			keyStyle.Render("↑/↓") + " navigate  " +
+			keyStyle.Render("←/→") + " scroll columns  " +
 			keyStyle.Render("q") + " quit",
 	)
 
