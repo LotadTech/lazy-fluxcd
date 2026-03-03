@@ -6,7 +6,7 @@ A terminal UI for monitoring FluxCD resources in your cluster.
 ![AI Assisted](https://img.shields.io/badge/AI%20assisted-GitHub%20Copilot-purple)
 
 <p align="center">
-  <img src="images/preview.png" alt="Preview" />
+  <img src="images/preview.png" alt="Preview" width="800" />
 </p>
 
 ## What it does
