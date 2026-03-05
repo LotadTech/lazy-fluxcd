@@ -21,7 +21,11 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to connect to cluster: %w", err)
 		}
-		p := tea.NewProgram(tui.New(client), tea.WithAltScreen())
+		clusterName, err := k8.CurrentContext(kubeconfig)
+		if err != nil {
+			clusterName = "unknown"
+		}
+		p := tea.NewProgram(tui.New(client, clusterName), tea.WithAltScreen())
 		_, err = p.Run()
 		return err
 	},
