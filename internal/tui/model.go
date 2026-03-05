@@ -74,6 +74,7 @@ func fetchCategory(client dynamic.Interface, category string) tea.Cmd {
 // Model is the root Bubbletea model.
 type Model struct {
 	client      dynamic.Interface
+	clusterName string
 	categories  []string
 	rows        map[string][]k8.Row
 	loading     map[string]bool
@@ -88,7 +89,7 @@ type Model struct {
 }
 
 // New returns an initialised Model.
-func New(client dynamic.Interface) Model {
+func New(client dynamic.Interface, clusterName string) Model {
 	categories := []string{
 		"Kustomizations",
 		"Helm Releases",
@@ -107,6 +108,7 @@ func New(client dynamic.Interface) Model {
 	}
 	return Model{
 		client:      client,
+		clusterName: clusterName,
 		categories:  categories,
 		rows:        make(map[string][]k8.Row),
 		loading:     loading,
@@ -367,6 +369,10 @@ func (m Model) View() string {
 
 	// ── Compose ───────────────────────────────────────────────────────────────
 	title := titleStyle.Render("⚡ lazy-fluxcd")
+	clusterLabel := lipgloss.NewStyle().Foreground(colorGray).Render("cluster: ") +
+		lipgloss.NewStyle().Foreground(colorPurple).Bold(true).Render(m.clusterName)
+	titleLine := lipgloss.PlaceHorizontal(m.width, lipgloss.Left, title+
+		lipgloss.PlaceHorizontal(m.width-lipgloss.Width(title), lipgloss.Right, clusterLabel))
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, sidebarPanel, mainPanel)
 
 	statusBar := statusStyle.Render(
@@ -376,5 +382,5 @@ func (m Model) View() string {
 			keyStyle.Render("q") + " quit",
 	)
 
-	return lipgloss.JoinVertical(lipgloss.Left, title, panels, statusBar)
+	return lipgloss.JoinVertical(lipgloss.Left, titleLine, panels, statusBar)
 }

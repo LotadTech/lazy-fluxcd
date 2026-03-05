@@ -26,3 +26,15 @@ func DynamicClient(kubeconfigPath string) (dynamic.Interface, error) {
 	}
 	return dynamic.NewForConfig(config)
 }
+
+func CurrentContext(kubeconfigPath string) (string, error) {
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if p := kubeConfig(kubeconfigPath); p != "" {
+		rules.ExplicitPath = p
+	}
+	cfg, err := rules.Load()
+	if err != nil {
+		return "", err
+	}
+	return cfg.CurrentContext, nil
+}
